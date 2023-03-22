@@ -179,7 +179,6 @@ class ErrorLog:
                 "INSERT INTO ErrorLog (log_time, from_class, from_func, error_text) VALUES (%s, %s, %s, %s)",
                 (now, from_class, from_func, str(error_text).replace("'", "‘")))
             self.conn.commit()
-            print("add", error_text)
         except pymysql.Error as e:
             raise Exception(f"Error adding error record: {e}")
 
@@ -271,8 +270,10 @@ class MysqlInfo:
                 database=self.db_name
             )
             conn.close()
+            return True
         except (pymysql.Error, Exception) as e:
-            raise Exception(f"Error checking MysqlInfo: {e}")
+            return False
+            # raise Exception(f"Error checking MysqlInfo: {e}")
 
 
 class FTPInfo:

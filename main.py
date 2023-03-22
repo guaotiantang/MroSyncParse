@@ -14,6 +14,10 @@ async def handle_user_input():
     while True:
         cmd = await asyncio.get_event_loop().run_in_executor(None, input, "Enter command (start, stop): ")
         if cmd == "start":
+            if ftp_scan_process is None:
+                manager_dict = manager.dict()
+                manager_dict['status'] = True
+                ftp_scan_process = FtpScanProcess(manager_dict)
             if not ftp_scan_process or not ftp_scan_process.is_alive():
                 ftp_scan_process.start()
                 time.sleep(1)
@@ -25,6 +29,7 @@ async def handle_user_input():
             if ftp_scan_process:
                 ftp_scan_process.stop()
                 ftp_scan_process.join()
+                ftp_scan_process = None
             else:
                 print("Process is not started.")
         elif cmd == "exit":
@@ -33,7 +38,7 @@ async def handle_user_input():
                 ftp_scan_process.join()
             sys.exit()
         elif cmd == 'del':
-            DownLog().dellog_by_time('2023-03-17 10:00:00')
+            DownLog().dellog_by_time('2023-03-27 10:00:00')
         else:
             print("Invalid command. Please enter 'start' or 'stop'.")
 
@@ -53,8 +58,5 @@ if __name__ == '__main__':
     print("MySQL Check:", mysql.check())
     print("FTP Check:", ftp.check())
     manager = multiprocessing.Manager()
-    manager_dict = manager.dict()
-    manager_dict['status'] = True
-
-    ftp_scan_process = FtpScanProcess(manager_dict)
+    ftp_scan_process = None
     asyncio.run(handle_user_input())
