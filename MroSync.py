@@ -3,11 +3,11 @@ import os
 import time
 import ftputil
 from ftputil.error import FTPOSError
-from Config import FTPInfo, DownLog, ErrorLog
+from Config import FTPInfo, DownLog, ErrorLog, MysqlInfo
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from MroParse import MroZipClass
-
+from SubTasks import MroTask
 
 class FtpScanClass:
 
@@ -50,7 +50,7 @@ class FtpScanClass:
                         if not any(temp_dir in dir_name for temp_dir in scan_filter):
                             file_size = self.ftp.path.getsize(ftp_file)
                             file_mtime = time.time()
-                            file_info = (ftp_file, file_size, file_mtime)
+                            file_info = (ftp_file, file_size, file_mtime, self.ftpinfo.ftp_name)
                             new_files.append(file_info)
         except (FTPOSError, Exception) as e:
             self.errlog.add_error('scan_newfiles', 'Error occurred while scanning New FTP directory:{}'.format(str(e)))
@@ -117,6 +117,8 @@ class FtpScanClass:
 class FtpScanProcess(multiprocessing.Process):
     def __init__(self, manager_dict, interval=60):
         super().__init__()
+        self.mysqlinfo = None
+        self.mro_tasks = None
         self.ftp_scan = None
         self.interval = interval
         self.manager_dict = manager_dict
@@ -128,6 +130,10 @@ class FtpScanProcess(multiprocessing.Process):
         self.manager_dict['status'] = True
         self.errlog = ErrorLog('FtpScanProcess')
         self.ftp_scan = FtpScanClass(self.manager_dict)
+        self.mro_tasks = MroTask()
+        self.mysqlinfo = MysqlInfo(section='LocalServer')
+        print(self.mysqlinfo.host)
+
         if self.ftp_scan.ftp is None:
             self.errlog.add_error('run', 'error FTP Connect Fail')
             self.manager_dict['status'] = False
@@ -141,7 +147,7 @@ class FtpScanProcess(multiprocessing.Process):
                             break
                         local_file = self.ftp_scan.file_download(file_info)
                         if local_file is not None:
-                            asyncio.run(self.parse_mro_file(local_file, file_info[0]))
+                            asyncio.run(self.parse_mro_file(local_file, file_info[3]))
                         with DownLog() as db:
                             print("save log")
                             db.savelog(file_info[0])
@@ -154,13 +160,17 @@ class FtpScanProcess(multiprocessing.Process):
                 self.errlog.add_error('ScanFtpNewFiles', 'error: {}'.format(str(e)))
                 continue
 
-    async def parse_mro_file(self, file_path, ftpfile_path):
+    async def parse_mro_file(self, file_path, ftp_name):
         async with self.semaphore:
             try:
                 with ThreadPoolExecutor(max_workers=1) as pool:
+                    await self.mro_tasks.connect_to_db(self.mysqlinfo.user, self.mysqlinfo.passwd,
+                                                       self.mysqlinfo.host, self.mysqlinfo.port)
                     task_list = \
                         await asyncio.get_running_loop().run_in_executor(pool, MroZipClass(file_path).scan_xml_list)
                     # task_list入库
+                    for task in task_list:
+                        await self.mro_tasks.tasks_add(task, ftp_name)
 
             except Exception as e:
                 self.errlog.add_error('scan_sub_tasks', "unmrozip from file {} ; error: {}".format(file_path, str(e)))
