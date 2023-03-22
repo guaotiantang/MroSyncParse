@@ -7,11 +7,17 @@ from Config import FTPInfo, DownLog, ErrorLog
 
 
 class FtpScanClass:
+
     def __init__(self, manager_dict):
         self.manager_dict = manager_dict
         self.ftpinfo = FTPInfo()
+        self.ftpinfo.read()
         self.ftp = None
         self.errlog = ErrorLog('FtpScanClass')
+        self.connect_to_ftp()
+        self.db = DownLog()
+
+    def connect_to_ftp(self):
         try:
             self.ftp = ftputil.FTPHost(self.ftpinfo.host,
                                        self.ftpinfo.user,
@@ -19,9 +25,8 @@ class FtpScanClass:
                                        self.ftpinfo.port,
                                        timeout=60)
         except (FTPOSError, Exception) as e:
-            self.errlog.add_error('init', 'Error for Ftp Connect: {}'.format(str(e)))
+            self.errlog.add_error('connect_to_ftp', 'Error for Ftp Connect: {}'.format(str(e)))
             raise 'Error for Ftp Connect: {}'.format(str(e))
-        self.db = DownLog()
 
     def stop(self):
         self.manager_dict['status'] = False
