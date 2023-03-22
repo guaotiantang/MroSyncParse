@@ -55,7 +55,6 @@ if __name__ == '__main__':
     manager = multiprocessing.Manager()
     manager_dict = manager.dict()
     manager_dict['status'] = True
-    manager_dict['ftp_name'] = ftp.ftp_name
 
     ftp_scan_process = FtpScanProcess(manager_dict)
     asyncio.run(handle_user_input())
